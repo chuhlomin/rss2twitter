@@ -80,7 +80,9 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 					log.Printf("[INFO] ignore first event %s - %s", event.GUID, event.Title)
 				}
 				lastGUIDs = append(lastGUIDs, event.GUID)
-				lastGUIDs = lastGUIDs[:n.Tail]
+				if len(lastGUIDs) > n.Tail {
+					lastGUIDs = lastGUIDs[:n.Tail]
+				}
 			}
 			if !waitOrCancel(n.ctx) {
 				log.Print("[WARN] notifier canceled")
