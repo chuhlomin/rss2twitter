@@ -25,7 +25,7 @@ type opts struct {
 	Refresh time.Duration `short:"r" long:"refresh" env:"REFRESH" default:"30s" description:"refresh interval"`
 	TimeOut time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"rss feed timeout"`
 	Feed    string        `short:"f" long:"feed" env:"FEED" required:"true" description:"rss feed url"`
-	Tail    int           `short:"l" long:"tail" env:"TAIL" default:"1" description:"number of items to keep in history"`
+	Tail    int           `short:"l" long:"tail" env:"TAIL" default:"1" description:"number of GUIDs to keep in history"`
 
 	ConsumerKey    string `long:"consumer-key" env:"TWI_CONSUMER_KEY" description:"twitter consumer key"`
 	ConsumerSecret string `long:"consumer-secret" env:"TWI_CONSUMER_SECRET" description:"twitter consumer secret"`
