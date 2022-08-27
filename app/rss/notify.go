@@ -18,6 +18,7 @@ type Notify struct {
 	Feed     string
 	Duration time.Duration
 	Timeout  time.Duration
+	Tail     int
 
 	once   sync.Once
 	ctx    context.Context
@@ -60,7 +61,7 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 		fp := gofeed.NewParser()
 		fp.Client = &http.Client{Timeout: n.Timeout}
 		log.Printf("[DEBUG] notifier uses http timeout %v", n.Timeout)
-		lastGUID := ""
+		var lastGUIDs []string
 		for {
 			feedData, err := fp.ParseURL(n.Feed)
 			if err != nil {
@@ -71,14 +72,15 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 				continue
 			}
 			event, err := n.feedEvent(feedData)
-			if lastGUID != event.GUID && err == nil {
-				if lastGUID != "" { // don't notify on initial change
+			if !inSlice(event.GUID, lastGUIDs) && err == nil {
+				if len(lastGUIDs) > 0 { // don't notify on initial change
 					log.Printf("[INFO] new event %s - %s", event.GUID, event.Title)
 					ch <- event
 				} else {
 					log.Printf("[INFO] ignore first event %s - %s", event.GUID, event.Title)
 				}
-				lastGUID = event.GUID
+				lastGUIDs = append(lastGUIDs, event.GUID)
+				lastGUIDs = lastGUIDs[:n.Tail]
 			}
 			if !waitOrCancel(n.ctx) {
 				log.Print("[WARN] notifier canceled")
@@ -113,4 +115,13 @@ func (n *Notify) feedEvent(feed *gofeed.Feed) (e Event, err error) {
 	e.GUID = feed.Items[0].GUID
 
 	return e, nil
+}
+
+func inSlice(s string, list []string) bool {
+	for _, v := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
 }

@@ -28,7 +28,7 @@ func TestNotify(t *testing.T) {
 	}))
 
 	defer ts.Close()
-	notify := Notify{Feed: ts.URL, Duration: time.Millisecond * 250, Timeout: time.Millisecond * 100}
+	notify := Notify{Feed: ts.URL, Duration: time.Millisecond * 250, Timeout: time.Millisecond * 100, Tail: 1}
 	ch := notify.Go(context.Background())
 	defer notify.Shutdown()
 
