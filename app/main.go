@@ -25,7 +25,6 @@ type opts struct {
 	Refresh time.Duration `short:"r" long:"refresh" env:"REFRESH" default:"30s" description:"refresh interval"`
 	TimeOut time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"rss feed timeout"`
 	Feed    string        `short:"f" long:"feed" env:"FEED" required:"true" description:"rss feed url"`
-	Tail    int           `short:"l" long:"tail" env:"TAIL" default:"1" description:"number of GUIDs to keep in history"`
 
 	ConsumerKey    string `long:"consumer-key" env:"TWI_CONSUMER_KEY" description:"twitter consumer key"`
 	ConsumerSecret string `long:"consumer-secret" env:"TWI_CONSUMER_SECRET" description:"twitter consumer secret"`
@@ -81,12 +80,7 @@ func setup(o opts) (n notifier, p publisher.Interface, err error) {
 		content = []byte{}
 	}
 	lines := strings.Split(string(content), "\n")
-	n = &rss.Notify{
-		Feed:     o.Feed,
-		Duration: o.Refresh,
-		Timeout:  o.TimeOut,
-		Tail:     o.Tail,
-	}
+	n = &rss.Notify{Feed: o.Feed, Duration: o.Refresh, Timeout: o.TimeOut}
 	p = publisher.Twitter{
 		ConsumerKey:    o.ConsumerKey,
 		ConsumerSecret: o.ConsumerSecret,

@@ -28,7 +28,7 @@ func TestNotify(t *testing.T) {
 	}))
 
 	defer ts.Close()
-	notify := Notify{Feed: ts.URL, Duration: time.Millisecond * 250, Timeout: time.Millisecond * 100, Tail: 1}
+	notify := Notify{Feed: ts.URL, Duration: time.Millisecond * 250, Timeout: time.Millisecond * 100}
 	ch := notify.Go(context.Background())
 	defer notify.Shutdown()
 
@@ -38,7 +38,7 @@ func TestNotify(t *testing.T) {
 	e.Text = ""
 	assert.Equal(t, Event{ChanTitle: "Радио-Т", Title: "Радио-Т 626",
 		Link: "https://radio-t.com/p/2018/12/01/podcast-626/", GUID: "https://radio-t.com/p/2018/12/01//podcast-626/"}, e)
-	assert.True(t, time.Since(st) >= time.Millisecond*250)
+	assert.True(t, time.Since(st) >= time.Millisecond*250, "duration %s", time.Since(st))
 
 	select {
 	case <-ch:

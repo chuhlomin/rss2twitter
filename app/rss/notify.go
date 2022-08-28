@@ -18,7 +18,6 @@ type Notify struct {
 	Feed     string
 	Duration time.Duration
 	Timeout  time.Duration
-	Tail     int
 
 	once   sync.Once
 	ctx    context.Context
@@ -61,7 +60,7 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 		fp := gofeed.NewParser()
 		fp.Client = &http.Client{Timeout: n.Timeout}
 		log.Printf("[DEBUG] notifier uses http timeout %v", n.Timeout)
-		var lastGUIDs []string
+		var seenGUIDs []string
 		for {
 			feedData, err := fp.ParseURL(n.Feed)
 			if err != nil {
@@ -71,19 +70,27 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 				}
 				continue
 			}
-			event, err := n.feedEvent(feedData)
-			if !inSlice(event.GUID, lastGUIDs) && err == nil {
-				if len(lastGUIDs) > 0 { // don't notify on initial change
+			events, err := n.feedEvents(feedData)
+			if err != nil {
+				log.Printf("[WARN] failed to parse feed %s, %v", n.Feed, err)
+				continue
+			}
+
+			if len(seenGUIDs) == 0 && len(events) > 0 {
+				log.Printf("[INFO] ignore first events, last is %s - %s", events[0].GUID, events[0].Title)
+				for _, e := range events {
+					seenGUIDs = append(seenGUIDs, e.GUID)
+				}
+				events = nil // effectively "goto" to waitOrCancel
+			}
+
+			for _, event := range events {
+				if !inSlice(event.GUID, seenGUIDs) {
 					log.Printf("[INFO] new event %s - %s", event.GUID, event.Title)
 					ch <- event
-				} else {
-					log.Printf("[INFO] ignore first event %s - %s", event.GUID, event.Title)
-				}
-				lastGUIDs = append(lastGUIDs, event.GUID)
-				if len(lastGUIDs) > n.Tail {
-					lastGUIDs = lastGUIDs[:n.Tail]
 				}
 			}
+
 			if !waitOrCancel(n.ctx) {
 				log.Print("[WARN] notifier canceled")
 				return
@@ -102,21 +109,25 @@ func (n *Notify) Shutdown() {
 }
 
 // feedEvent gets latest item from rss feed
-func (n *Notify) feedEvent(feed *gofeed.Feed) (e Event, err error) {
+func (n *Notify) feedEvents(feed *gofeed.Feed) (events []Event, err error) {
 	if len(feed.Items) == 0 {
-		return e, errors.New("no items in rss feed")
+		return events, errors.New("no items in rss feed")
 	}
 	if feed.Items[0].GUID == "" {
-		return e, errors.Errorf("no guid for rss entry %+v", feed.Items[0])
+		return events, errors.Errorf("no guid for rss entry %+v", feed.Items[0])
 	}
 
-	e.ChanTitle = feed.Title
-	e.Title = feed.Items[0].Title
-	e.Link = feed.Items[0].Link
-	e.Text = feed.Items[0].Description
-	e.GUID = feed.Items[0].GUID
+	for _, item := range feed.Items {
+		events = append(events, Event{
+			ChanTitle: feed.Title,
+			Title:     item.Title,
+			Link:      item.Link,
+			Text:      item.Description,
+			GUID:      item.GUID,
+		})
+	}
 
-	return e, nil
+	return events, nil
 }
 
 func inSlice(s string, list []string) bool {
