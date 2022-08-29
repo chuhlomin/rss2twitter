@@ -5,6 +5,7 @@ package rss
 import (
 	"context"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -31,7 +32,16 @@ type Event struct {
 	Link      string
 	Text      string
 	GUID      string
+	Published *time.Time
 }
+
+type byPublishedDesc []Event
+
+func (by byPublishedDesc) Len() int { return len(by) }
+func (by byPublishedDesc) Less(i, j int) bool {
+	return by[i].Published.After(*by[j].Published)
+}
+func (by byPublishedDesc) Swap(i, j int) { by[i], by[j] = by[j], by[i] }
 
 // Go starts notifier and returns events channel
 func (n *Notify) Go(ctx context.Context) <-chan Event {
@@ -60,7 +70,7 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 		fp := gofeed.NewParser()
 		fp.Client = &http.Client{Timeout: n.Timeout}
 		log.Printf("[DEBUG] notifier uses http timeout %v", n.Timeout)
-		var seenGUIDs []string
+		var publishedAfter *time.Time
 		for {
 			feedData, err := fp.ParseURL(n.Feed)
 			if err != nil {
@@ -70,25 +80,22 @@ func (n *Notify) Go(ctx context.Context) <-chan Event {
 				}
 				continue
 			}
-			events, err := n.feedEvents(feedData)
+			events, err := n.feedEvents(feedData, publishedAfter)
 			if err != nil {
 				log.Printf("[WARN] failed to parse feed %s, %v", n.Feed, err)
 				continue
 			}
 
-			if len(seenGUIDs) == 0 && len(events) > 0 {
-				log.Printf("[INFO] ignore first events, last is %s - %s", events[0].GUID, events[0].Title)
-				for _, e := range events {
-					seenGUIDs = append(seenGUIDs, e.GUID)
-				}
+			if publishedAfter == nil {
+				log.Printf("[INFO] ignore first event %s - %s", events[0].GUID, events[0].Title)
+				publishedAfter = events[0].Published
 				events = nil // effectively "goto" to waitOrCancel
 			}
 
 			for _, event := range events {
-				if !inSlice(event.GUID, seenGUIDs) {
-					log.Printf("[INFO] new event %s - %s", event.GUID, event.Title)
-					ch <- event
-				}
+				log.Printf("[INFO] new event %s - %s", event.GUID, event.Title)
+				ch <- event
+				publishedAfter = event.Published
 			}
 
 			if !waitOrCancel(n.ctx) {
@@ -109,7 +116,7 @@ func (n *Notify) Shutdown() {
 }
 
 // feedEvent gets latest item from rss feed
-func (n *Notify) feedEvents(feed *gofeed.Feed) (events []Event, err error) {
+func (n *Notify) feedEvents(feed *gofeed.Feed, publishedAfter *time.Time) (events []Event, err error) {
 	if len(feed.Items) == 0 {
 		return events, errors.New("no items in rss feed")
 	}
@@ -118,23 +125,21 @@ func (n *Notify) feedEvents(feed *gofeed.Feed) (events []Event, err error) {
 	}
 
 	for _, item := range feed.Items {
+		if publishedAfter != nil && !item.PublishedParsed.After(*publishedAfter) {
+			continue
+		}
+
 		events = append(events, Event{
 			ChanTitle: feed.Title,
 			Title:     item.Title,
 			Link:      item.Link,
 			Text:      item.Description,
 			GUID:      item.GUID,
+			Published: item.PublishedParsed,
 		})
 	}
 
-	return events, nil
-}
+	sort.Sort(byPublishedDesc(events))
 
-func inSlice(s string, list []string) bool {
-	for _, v := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
+	return events, nil
 }
