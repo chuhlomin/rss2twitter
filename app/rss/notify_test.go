@@ -36,9 +36,8 @@ func TestNotify(t *testing.T) {
 	e := <-ch
 	t.Logf("%+v", e)
 	e.Text = ""
-	published := time.Date(2018, 12, 1, 23, 11, 19, 0, time.UTC)
 	assert.Equal(t, Event{ChanTitle: "Радио-Т", Title: "Радио-Т 626",
-		Link: "https://radio-t.com/p/2018/12/01/podcast-626/", GUID: "https://radio-t.com/p/2018/12/01//podcast-626/", Published: &published}, e)
+		Link: "https://radio-t.com/p/2018/12/01/podcast-626/", GUID: "https://radio-t.com/p/2018/12/01//podcast-626/"}, e)
 	assert.True(t, time.Since(st) >= time.Millisecond*250, "duration %s", time.Since(st))
 
 	select {
